@@ -1,4 +1,6 @@
 *.[oa]
+*.dylib
+*.so
 bwa
 test
 test64
