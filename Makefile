@@ -1,42 +1,54 @@
-CC=			gcc
-#CC=			clang --analyze
-CFLAGS=		-g -Wall -O2
-WRAP_MALLOC=-DUSE_MALLOC_WRAPPERS
-AR=			ar
-DFLAGS=		-DHAVE_PTHREAD $(WRAP_MALLOC)
-LOBJS=		utils.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o
-AOBJS=		QSufSort.o bwt_gen.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
-			is.o bwtindex.o bwape.o kopen.o pemerge.o \
-			bwtsw2_core.o bwtsw2_main.o bwtsw2_aux.o bwt_lite.o \
-			bwtsw2_chain.o fastmap.o bwtsw2_pair.o
-PROG=		bwa
-INCLUDES=	
-LIBS=		-lm -lz -lpthread
-SUBDIRS=	.
+OSTYPE = $(shell uname -s)
+ifeq ("$(OSTYPE)", "Darwin") # Mac OS X
+	ARCH = -arch i386 -arch x86_64
+	TARGET = libbwa.dylib
+	SHARED = -dynamiclib
+	SONAME = -install_name
+else # Linux
+	ARCH = -arch x86_64
+	TARGET = libbwa.so
+	SHARED = -shared
+	SONAME = -soname
+endif
+
+OUT_DIR = .
+
+CC = gcc
+CFLAGS = -g -Wall -O2
+WRAP_MALLOC = -DUSE_MALLOC_WRAPPERS
+DFLAGS = -DHAVE_PTHREAD $(WRAP_MALLOC)
+LOBJS = utils.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o
+AOBJS = QSufSort.o bwt_gen.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
+        is.o bwtindex.o bwape.o kopen.o pemerge.o \
+        bwtsw2_core.o bwtsw2_main.o bwtsw2_aux.o bwt_lite.o \
+        bwtsw2_chain.o fastmap.o bwtsw2_pair.o
+LIBS = -lm -lz -lpthread
+
+all: $(TARGET)
 
 .SUFFIXES:.c .o .cc
 
 .c.o:
-		$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
+	$(CC) -c $(CFLAGS) $(DFLAGS) $< -o $@
 
-all:$(PROG)
+$(TARGET): libbwa.a $(AOBJS) $(OUT_DIR) main.o
+	$(CC) $(CFLAGS) $(DFLAGS) $(AOBJS) main.o $(SHARED) -Wl,$(SONAME),$(TARGET) -o $(OUT_DIR)/$(TARGET) -L. -lbwa $(LIBS)
+	@rm -f *.o
+	@echo Success to create $(TARGET)
 
-bwa:libbwa.a $(AOBJS) main.o
-		$(CC) $(CFLAGS) $(DFLAGS) $(AOBJS) main.o -o $@ -L. -lbwa $(LIBS)
+AR = ar
 
-bwamem-lite:libbwa.a example.o
-		$(CC) $(CFLAGS) $(DFLAGS) example.o -o $@ -L. -lbwa $(LIBS)
+libbwa.a: $(LOBJS)
+	$(AR) -csru $@ $(LOBJS)
 
-libbwa.a:$(LOBJS)
-		$(AR) -csru $@ $(LOBJS)
+$(OUT_DIR):
+	mkdir -p $(OUT_DIR)
 
 clean:
-		rm -f gmon.out *.o a.out $(PROG) *~ *.a
+	@rm -f *.o $(OUT_DIR)/$(TARGET)
 
 depend:
 	( LC_ALL=C ; export LC_ALL; makedepend -Y -- $(CFLAGS) $(DFLAGS) -- *.c )
-
-# DO NOT DELETE THIS LINE -- make depend depends on it.
 
 QSufSort.o: QSufSort.h
 bamlite.o: bamlite.h malloc_wrap.h
