@@ -25,6 +25,8 @@
 
 /* Contact: Heng Li <lh3@sanger.ac.uk> */
 
+#include "bwtindex.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
