@@ -41,6 +41,7 @@ extern "C" {
 	void bwa_idx_destroy(bwaidx_t *idx);
 
 	void bwa_print_sam_hdr(const bntseq_t *bns, const char *rg_line);
+	void bwa_fprint_sam_hdr(FILE *stream, const bntseq_t *bns, const char *rg_line);
 	char *bwa_set_rg(const char *s);
 
 #ifdef __cplusplus

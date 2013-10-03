@@ -78,7 +78,7 @@ bwtsw2_main.o: bwt.h bwtsw2.h bntseq.h bwt_lite.h utils.h bwa.h
 bwtsw2_pair.o: utils.h bwt.h bntseq.h bwtsw2.h bwt_lite.h kstring.h
 bwtsw2_pair.o: malloc_wrap.h ksw.h
 example.o: bwamem.h bwt.h bntseq.h bwa.h kseq.h malloc_wrap.h
-fastmap.o: bwa.h bntseq.h bwt.h bwamem.h kvec.h malloc_wrap.h utils.h kseq.h
+fastmap.o: bwa.h bntseq.h bwt.h bwamem.h kvec.h malloc_wrap.h utils.h kseq.h fastmap.h
 is.o: malloc_wrap.h
 kopen.o: malloc_wrap.h
 kstring.o: kstring.h malloc_wrap.h
@@ -87,4 +87,4 @@ main.o: utils.h
 malloc_wrap.o: malloc_wrap.h
 pemerge.o: ksw.h kseq.h malloc_wrap.h kstring.h bwa.h bntseq.h bwt.h utils.h
 utils.o: utils.h ksort.h malloc_wrap.h kseq.h
-bwa_java.o: bwa_java.h
+bwa_java.o: bwa_java.h bwa.h bntseq.h bwt.h bwtindex.h bwamem.h fastmap.h kseq.h utils.h

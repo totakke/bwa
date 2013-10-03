@@ -282,6 +282,15 @@ void bwa_print_sam_hdr(const bntseq_t *bns, const char *rg_line)
 	if (rg_line) err_printf("%s\n", rg_line);
 }
 
+void bwa_fprint_sam_hdr(FILE *stream, const bntseq_t *bns, const char *rg_line)
+{
+	int i;
+	for (i = 0; i < bns->n_seqs; ++i)
+		err_fprintf(stream, "@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len);
+	if (rg_line) err_printf("%s\n", rg_line);
+	err_fflush(stream);
+}
+
 static char *bwa_escape(char *s)
 {
 	char *p, *q;
@@ -326,4 +335,3 @@ err_set_rg:
 	free(rg_line);
 	return 0;
 }
-

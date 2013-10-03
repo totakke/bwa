@@ -1,3 +1,5 @@
+#include "fastmap.h"
+
 #include <zlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -13,9 +15,6 @@
 KSEQ_DECLARE(gzFile)
 
 extern unsigned char nst_nt4_table[256];
-
-void *kopen(const char *fn, int *_fd);
-int kclose(void *a);
 
 int main_mem(int argc, char *argv[])
 {
