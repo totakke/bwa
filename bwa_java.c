@@ -114,6 +114,7 @@ int bwa_java_mem(char *ref_fa, char *in_fq, char *out_sam,
     char *rg_line = 0;
     void *ko = 0, *ko2 = 0;
     FILE *fpo;
+    int64_t n_processed = 0;
 
     /* Validate arguments */
     if (skip_mate_rescue < 0 || 1 < skip_mate_rescue) return 1;
@@ -170,7 +171,8 @@ int bwa_java_mem(char *ref_fa, char *in_fq, char *out_sam,
         for (i = 0; i < n; ++i) size += seqs[i].l_seq;
         if (bwa_verbose >= 3)
             fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, n, (long)size);
-        mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, n, seqs, 0);
+        mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, n_processed, n, seqs, 0);
+        n_processed += n;
         for (i = 0; i < n; ++i) {
             err_fputs(seqs[i].sam, fpo);
             free(seqs[i].name); free(seqs[i].comment); free(seqs[i].seq); free(seqs[i].qual); free(seqs[i].sam);

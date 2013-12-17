@@ -64,8 +64,8 @@ mem_opt_t *mem_opt_init()
 	o->n_threads = 1;
 	o->max_matesw = 100;
 	o->mask_level_redun = 0.95;
-//	o->mapQ_coef_len = 100; o->mapQ_coef_fac = log(o->mapQ_coef_len);
-	o->mapQ_coef_len = o->mapQ_coef_fac = 0;
+	o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
+//	o->mapQ_coef_len = o->mapQ_coef_fac = 0;
 	bwa_fill_scmat(o->a, o->b, o->mat);
 	return o;
 }
@@ -372,6 +372,9 @@ KSORT_INIT(mem_ars2, mem_alnreg_t, alnreg_slt2)
 #define alnreg_slt(a, b) ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))
 KSORT_INIT(mem_ars, mem_alnreg_t, alnreg_slt)
 
+#define alnreg_hlt(a, b) ((a).score > (b).score || ((a).score == (b).score && (a).hash < (b).hash))
+KSORT_INIT(mem_ars_hash, mem_alnreg_t, alnreg_hlt)
+
 int mem_sort_and_dedup(int n, mem_alnreg_t *a, float mask_level_redun)
 {
 	int m, i, j;
@@ -415,13 +418,14 @@ int mem_sort_and_dedup(int n, mem_alnreg_t *a, float mask_level_redun)
 	return m;
 }
 
-void mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a) // IMPORTANT: must run mem_sort_and_dedup() before calling this function
+void mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id) // IMPORTANT: must run mem_sort_and_dedup() before calling this function
 { // similar to the loop in mem_chain_flt()
 	int i, k, tmp;
 	kvec_t(int) z;
 	if (n == 0) return;
 	kv_init(z);
-	for (i = 0; i < n; ++i) a[i].sub = 0, a[i].secondary = -1;
+	for (i = 0; i < n; ++i) a[i].sub = 0, a[i].secondary = -1, a[i].hash = hash_64(id+i);
+	ks_introsort(mem_ars_hash, n, a);
 	tmp = opt->a + opt->b > opt->q + opt->r? opt->a + opt->b : opt->q + opt->r;
 	kv_push(int, z, 0);
 	for (i = 1; i < n; ++i) {
@@ -890,7 +894,7 @@ mem_alnreg_v mem_align1(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *
 	seq = malloc(l_seq);
 	memcpy(seq, seq_, l_seq); // makes a copy of seq_
 	ar = mem_align1_core(opt, bwt, bns, pac, l_seq, seq);
-	mem_mark_primary_se(opt, ar.n, ar.a);
+	mem_mark_primary_se(opt, ar.n, ar.a, lrand48());
 	free(seq);
 	return ar;
 }
@@ -920,8 +924,16 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 		exit(1);
 	}
 	w2 = infer_bw(qe - qb, re - rb, ar->truesc, opt->a, opt->q, opt->r);
-	w2 = w2 < opt->w? w2 : opt->w;
-	a.cigar = bwa_gen_cigar(opt->mat, opt->q, opt->r, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM);
+	if (bwa_verbose >= 4) fprintf(stderr, "Band width: infer=%d, opt=%d, alnreg=%d\n", w2, opt->w, ar->w);
+	if (w2 > opt->w) w2 = w2 < ar->w? w2 : ar->w;
+	else w2 = opt->w;
+	i = 0; a.cigar = 0;
+	do {
+		free(a.cigar);
+		a.cigar = bwa_gen_cigar(opt->mat, opt->q, opt->r, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM);
+		if (bwa_verbose >= 4) fprintf(stderr, "Final alignment: w2=%d, global_sc=%d, local_sc=%d\n", w2, score, ar->truesc);
+		w2 <<= 1;
+	} while (++i < 3 && score < ar->truesc - opt->a);
 	a.NM = NM;
 	pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
 	a.is_rev = is_rev;
@@ -952,7 +964,6 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 }
 
 typedef struct {
-	int start, step, n;
 	const mem_opt_t *opt;
 	const bwt_t *bwt;
 	const bntseq_t *bns;
@@ -960,86 +971,50 @@ typedef struct {
 	const mem_pestat_t *pes;
 	bseq1_t *seqs;
 	mem_alnreg_v *regs;
+	int64_t n_processed;
 } worker_t;
 
-static void *worker1(void *data)
+static void worker1(void *data, int i, int tid)
 {
 	worker_t *w = (worker_t*)data;
-	int i;
 	if (!(w->opt->flag&MEM_F_PE)) {
-		for (i = w->start; i < w->n; i += w->step)
-			w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].seq);
-	} else { // for PE we align the two ends in the same thread in case the 2nd read is of worse quality, in which case some threads may be faster/slower
-		for (i = w->start; i < w->n>>1; i += w->step) {
-			w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].seq);
-			w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq);
-		}
+		w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].seq);
+	} else {
+		w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].seq);
+		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq);
 	}
-	return 0;
 }
 
-static void *worker2(void *data)
+static void worker2(void *data, int i, int tid)
 {
 	extern int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]);
 	worker_t *w = (worker_t*)data;
-	int i;
 	if (!(w->opt->flag&MEM_F_PE)) {
-		for (i = w->start; i < w->n; i += w->step) {
-			mem_mark_primary_se(w->opt, w->regs[i].n, w->regs[i].a);
-			mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0);
-			free(w->regs[i].a);
-		}
+		mem_mark_primary_se(w->opt, w->regs[i].n, w->regs[i].a, w->n_processed + i);
+		mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0);
+		free(w->regs[i].a);
 	} else {
-		int n = 0;
-		for (i = w->start; i < w->n>>1; i += w->step) { // not implemented yet
-			n += mem_sam_pe(w->opt, w->bns, w->pac, w->pes, i, &w->seqs[i<<1], &w->regs[i<<1]);
-			free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
-		}
-		fprintf(stderr, "[M::%s@%d] performed mate-SW for %d reads\n", __func__, w->start, n);
+		mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1]);
+		free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
 	}
-	return 0;
 }
 
-void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int n, bseq1_t *seqs, const mem_pestat_t *pes0)
+void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0)
 {
-	int i;
-	worker_t *w;
+	extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
+	worker_t w;
 	mem_alnreg_v *regs;
 	mem_pestat_t pes[4];
 
-	w = calloc(opt->n_threads, sizeof(worker_t));
 	regs = malloc(n * sizeof(mem_alnreg_v));
-	for (i = 0; i < opt->n_threads; ++i) {
-		worker_t *p = &w[i];
-		p->start = i; p->step = opt->n_threads; p->n = n;
-		p->opt = opt; p->bwt = bwt; p->bns = bns; p->pac = pac;
-		p->seqs = seqs; p->regs = regs;
-		p->pes = &pes[0];
+	w.opt = opt; w.bwt = bwt; w.bns = bns; w.pac = pac;
+	w.seqs = seqs; w.regs = regs; w.n_processed = n_processed;
+	w.pes = &pes[0];
+	kt_for(opt->n_threads, worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // find mapping positions
+	if (opt->flag&MEM_F_PE) { // infer insert sizes if not provided
+		if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0
+		else mem_pestat(opt, bns->l_pac, n, regs, pes); // otherwise, infer the insert size distribution from data
 	}
-
-#ifdef HAVE_PTHREAD
-	if (opt->n_threads == 1) {
-#endif
-		worker1(w);
-		if (opt->flag&MEM_F_PE) { // paired-end mode
-			if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0
-			else mem_pestat(opt, bns->l_pac, n, regs, pes); // otherwise, infer the insert size distribution from data
-		}
-		worker2(w);
-#ifdef HAVE_PTHREAD
-	} else {
-		pthread_t *tid;
-		tid = (pthread_t*)calloc(opt->n_threads, sizeof(pthread_t));
-		for (i = 0; i < opt->n_threads; ++i) pthread_create(&tid[i], 0, worker1, &w[i]);
-		for (i = 0; i < opt->n_threads; ++i) pthread_join(tid[i], 0);
-		if (opt->flag&MEM_F_PE) {
-			if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t));
-			else mem_pestat(opt, bns->l_pac, n, regs, pes);
-		}
-		for (i = 0; i < opt->n_threads; ++i) pthread_create(&tid[i], 0, worker2, &w[i]);
-		for (i = 0; i < opt->n_threads; ++i) pthread_join(tid[i], 0);
-		free(tid);
-	}
-#endif
-	free(regs); free(w);
+	kt_for(opt->n_threads, worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // generate alignment
+	free(regs);
 }
