@@ -14,14 +14,14 @@ endif
 OUT_DIR = .
 
 CC = gcc
-CFLAGS = -g -Wall -O2
+CFLAGS = -g -Wall -O2 -fPIC
 WRAP_MALLOC = -DUSE_MALLOC_WRAPPERS
 DFLAGS = -DHAVE_PTHREAD $(WRAP_MALLOC)
-LOBJS = utils.o kthread.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o bwa_java.o
+LOBJS = utils.o kthread.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o
 AOBJS = QSufSort.o bwt_gen.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
         is.o bwtindex.o bwape.o kopen.o pemerge.o \
         bwtsw2_core.o bwtsw2_main.o bwtsw2_aux.o bwt_lite.o \
-        bwtsw2_chain.o fastmap.o bwtsw2_pair.o
+        bwtsw2_chain.o fastmap.o bwtsw2_pair.o bwa_java.o
 LIBS = -lm -lz -lpthread
 
 all: $(TARGET)
@@ -32,7 +32,7 @@ all: $(TARGET)
 	$(CC) -c $(CFLAGS) $(DFLAGS) $< -o $@
 
 $(TARGET): libbwa.a $(AOBJS) $(OUT_DIR) main.o
-	$(CC) $(CFLAGS) $(DFLAGS) $(AOBJS) main.o $(SHARED) -Wl,$(SONAME),$@ -o $(OUT_DIR)/$@ -L. -lbwa $(LIBS)
+	$(CC) $(CFLAGS) $(DFLAGS) $(AOBJS) $(LOBJS) main.o $(SHARED) -Wl,$(SONAME),$@ -o $@ $(LIBS)
 	@rm -f *.o
 	@echo Success to create $(TARGET)
 
@@ -68,7 +68,7 @@ bwt_gen.o: QSufSort.h malloc_wrap.h
 bwt_lite.o: bwt_lite.h malloc_wrap.h
 bwtaln.o: bwtaln.h bwt.h bwtgap.h utils.h bwa.h bntseq.h malloc_wrap.h
 bwtgap.o: bwtgap.h bwt.h bwtaln.h malloc_wrap.h
-bwtindex.o: bntseq.h bwt.h utils.h malloc_wrap.h
+bwtindex.o: bwtindex.h bntseq.h bwt.h utils.h malloc_wrap.h
 bwtsw2_aux.o: bntseq.h bwt_lite.h utils.h bwtsw2.h bwt.h kstring.h
 bwtsw2_aux.o: malloc_wrap.h bwa.h ksw.h kseq.h ksort.h
 bwtsw2_chain.o: bwtsw2.h bntseq.h bwt_lite.h bwt.h malloc_wrap.h ksort.h
@@ -78,7 +78,7 @@ bwtsw2_main.o: bwt.h bwtsw2.h bntseq.h bwt_lite.h utils.h bwa.h
 bwtsw2_pair.o: utils.h bwt.h bntseq.h bwtsw2.h bwt_lite.h kstring.h
 bwtsw2_pair.o: malloc_wrap.h ksw.h
 example.o: bwamem.h bwt.h bntseq.h bwa.h kseq.h malloc_wrap.h
-fastmap.o: bwa.h bntseq.h bwt.h bwamem.h kvec.h malloc_wrap.h utils.h kseq.h fastmap.h
+fastmap.o: fastmap.h bwa.h bntseq.h bwt.h bwamem.h kvec.h malloc_wrap.h utils.h kseq.h
 is.o: malloc_wrap.h
 kopen.o: malloc_wrap.h
 kstring.o: kstring.h malloc_wrap.h
