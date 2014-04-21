@@ -4,7 +4,7 @@
 #include "utils.h"
 
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "0.7.5a-r424"
+#define PACKAGE_VERSION "0.7.8-r455"
 #endif
 
 int bwa_fa2pac(int argc, char *argv[]);
@@ -24,7 +24,7 @@ int main_fastmap(int argc, char *argv[]);
 int main_mem(int argc, char *argv[]);
 
 int main_pemerge(int argc, char *argv[]);
-
+	
 char *bwa_pg;
 
 static int usage()
@@ -55,11 +55,6 @@ static int usage()
 "      `aln/samse/sampe'. If you are not sure which to use, try `bwa mem'\n"
 "      first. Please `man ./bwa.1' for the manual.\n\n");
 	return 1;
-}
-
-void bwa_print_sam_PG()
-{
-	err_printf("@PG\tID:bwa\tPN:bwa\tVN:%s\n", PACKAGE_VERSION);
 }
 
 int main(int argc, char *argv[])

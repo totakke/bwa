@@ -14,9 +14,10 @@ endif
 OUT_DIR = .
 
 CC = gcc
-CFLAGS = -g -Wall -O2 -fPIC
+CFLAGS = -g -Wall -O2 -Wno-unused-function #-fPIC
 WRAP_MALLOC = -DUSE_MALLOC_WRAPPERS
 DFLAGS = -DHAVE_PTHREAD $(WRAP_MALLOC)
+AR = ar
 LOBJS = utils.o kthread.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o
 AOBJS = QSufSort.o bwt_gen.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
         is.o bwtindex.o bwape.o kopen.o pemerge.o \
@@ -35,8 +36,6 @@ $(TARGET): libbwa.a $(AOBJS) $(OUT_DIR) main.o
 	$(CC) $(CFLAGS) $(DFLAGS) $(AOBJS) $(LOBJS) main.o $(SHARED) -Wl,$(SONAME),$@ -o $@ $(LIBS)
 	@rm -f *.o
 	@echo Success to create $(TARGET)
-
-AR = ar
 
 libbwa.a: $(LOBJS)
 	$(AR) -csru $@ $(LOBJS)

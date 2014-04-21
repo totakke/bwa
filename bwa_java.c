@@ -101,7 +101,8 @@ int bwa_java_index(char *in_fa, char *out_prefix, char *algo, int is_64)
 int bwa_java_mem(char *ref_fa, char *in_fq, char *out_sam,
                  int n_threads, int min_seed_len, int w, int zdrop,
                  float split_factor, int max_occ, int skip_mate_rescue,
-                 int skip_pairing, int a, int b, int q, int r,
+                 int skip_pairing, int a, int b,
+                 int o_del, int o_ins, int e_del, int e_ins,
                  int pen_clip5, int pen_unpaired, int p,
                  int T, int append_comment, int mark_shorter_split)
 {
@@ -128,8 +129,10 @@ int bwa_java_mem(char *ref_fa, char *in_fq, char *out_sam,
     opt->w = w;
     opt->a = a;
     opt->b = b;
-    opt->q = q;
-    opt->r = r;
+    opt->o_del = o_del;
+    opt->o_ins = o_ins;
+    opt->e_del = e_del;
+    opt->e_ins = e_ins;
     opt->T = T;
     opt->pen_unpaired = pen_unpaired;
     opt->n_threads = n_threads > 1 ? n_threads : 1;
