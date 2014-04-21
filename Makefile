@@ -14,7 +14,7 @@ endif
 OUT_DIR = .
 
 CC = gcc
-CFLAGS = -g -Wall -O2 -Wno-unused-function #-fPIC
+CFLAGS = -g -Wall -O2 -Wno-unused-function -fPIC
 WRAP_MALLOC = -DUSE_MALLOC_WRAPPERS
 DFLAGS = -DHAVE_PTHREAD $(WRAP_MALLOC)
 AR = ar
